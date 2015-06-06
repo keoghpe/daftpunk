@@ -12,6 +12,7 @@ from nltk import FreqDist
 from urlparse import urlsplit
 import logging
 import traceback
+import pdb
 
 RABBIT_QUEUE = 'daftpunk'
 
@@ -92,10 +93,13 @@ class DpParser(object):
             currency = price.string[0]
             value = price.string[1:].replace(',', '')
             logging.error( float(value.split(' ')[0]))
+            pricing = float(value.split(' ')[0])
+            if value.split(' ')[1] == 'Weekly':
+                pricing = pricing * 4
             logging.error(timestamp)
-            self.redis.zadd('daftpunk:%s:price' % id_, float(value.split(' ')[0]), timestamp)
+            self.redis.zadd('daftpunk:%s:price' % id_, pricing, timestamp)
             self.redis.set('daftpunk:%s:currency' % id_, currency)
-            self.redis.set('daftpunk:%s:current_price' % id_, value)
+            self.redis.set('daftpunk:%s:current_price' % id_, pricing)
 
     @scrape_once
     def ber_rating(self, id_, timestamp, soup):
@@ -124,6 +128,28 @@ class DpParser(object):
         address = soup.find(id="address_box").h1.text
 
         self.redis.set('daftpunk:%s:address' % id_, address)
+
+    @scrape_update
+    def bedrooms(self, id_, timestamp, soup):
+        headers = soup.find_all(**{'class':'header_text'})
+        bedroom_header = headers[1]
+        if bedroom_header:
+            logging.error(bedroom_header)
+            bedroom_string = str(bedroom_header).split('>')[1]
+            logging.error(bedroom_string)
+            if bedroom_string:
+                bedrooms = float(bedroom_string.split(' ')[0])
+                self.redis.set('daftpunk:%s:bedrooms' % id_, bedrooms)
+
+    @scrape_update
+    def bathrooms(self, id_, timestamp, soup):
+        headers = soup.find_all(**{'class':'header_text'})
+        bathroom_header = headers[1]
+        if bathroom_header:
+            bathroom_string = str(bathroom_header).split('>')[1]
+            if bathroom_string:
+                bathrooms = float(bathroom_string.split(' ')[0])
+                self.redis.set('daftpunk:%s:bathrooms' % id_, bathrooms)
 
     @scrape_once
     def geocode(self, id_, timestamp, soup):
